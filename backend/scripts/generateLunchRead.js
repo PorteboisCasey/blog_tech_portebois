@@ -573,34 +573,76 @@ async function updateLunchReadsFile(newLunchRead) {
     // Extract the object content
     const objectContent = lunchReadsMatch[1];
     
-    // Parse the existing object safely
+    // Parse the existing object safely using Function evaluation
     let lunchReadsObj;
     try {
-      // Use a safer approach to convert JS object to an actual object
+      // Sanitize the object content to make it safe for evaluation
+      // This approach handles JavaScript object notation including hyphenated keys
+      const sanitizedContent = objectContent
+        // Ensure all property values end with comma for consistency
+        .replace(/(['"]:\s*{(?:\s*\n\s*)?)/g, '$1\n')
+        // Add extra safety around function evaluation
+        .replace(/\bfunction\s*\(/g, 'FUNCTION_NOT_ALLOWED(');
+      
       // Create a temporary function that returns the parsed object
-      const objStr = `return ${objectContent}`;
+      const objStr = `
+        try {
+          return ${sanitizedContent};
+        } catch (e) {
+          throw new Error('Failed to evaluate object: ' + e.message);
+        }
+      `;
+      
       // Use Function constructor to create a function that returns the parsed object
       const objFn = new Function(objStr);
+      
       // Execute the function to get the parsed object
       lunchReadsObj = objFn();
+      
+      // Validate the result is an object
+      if (!lunchReadsObj || typeof lunchReadsObj !== 'object') {
+        throw new Error('Parsed result is not a valid object');
+      }
     } catch (error) {
       log.error('Error parsing lunchReads object', error);
-      throw new Error(`Failed to parse lunchReads object: ${error.message}. The file format should be 'export const lunchReads = {...};'`);
+      throw new Error(`Failed to parse lunchReads object: ${error.message}`);
     }
     
     // Merge the new lunch read with existing ones
     const newLunchReadId = Object.keys(newLunchRead)[0];
     lunchReadsObj[newLunchReadId] = newLunchRead[newLunchReadId];
     
-    // Convert back to string (pretty format)
-    // Use a custom formatter that properly maintains JavaScript object format
-    let updatedLunchReadsStr = JSON.stringify(lunchReadsObj, null, 2)
-      // Convert normal keys to unquoted format (but keep hyphenated keys quoted)
-      .replace(/"([a-zA-Z0-9_]+)":/g, '$1:')
-      // Convert remaining double quotes to single quotes for consistency
-      .replace(/"/g, "'")
-      // Fix escaped single quotes
-      .replace(/\\'/g, "\\'");
+    // Format the JavaScript object back to a string, preserving the original format
+    const formatJsObject = (obj, indent = 2) => {
+      const spaces = ' '.repeat(indent);
+      
+      return '{\n' + Object.entries(obj).map(([key, value]) => {
+        // Format the key with appropriate quoting
+        const formattedKey = /^[a-zA-Z0-9_]+$/.test(key) ? key : `'${key}'`;
+        
+        // Format the value based on its type
+        let formattedValue;
+        if (value === null) {
+          formattedValue = 'null';
+        } else if (typeof value === 'object' && !Array.isArray(value)) {
+          formattedValue = formatJsObject(value, indent + 2);
+        } else if (Array.isArray(value)) {
+          formattedValue = JSON.stringify(value)
+            .replace(/"/g, "'")  // Use single quotes for consistency
+            .replace(/,/g, ', '); // Add space after commas
+        } else if (typeof value === 'string') {
+          // Escape single quotes and use single quotes for strings
+          formattedValue = `'${value.replace(/'/g, "\\'")}'`;
+        } else {
+          formattedValue = String(value);
+        }
+        
+        return `${spaces}${formattedKey}: ${formattedValue}`;
+      }).join(',\n') + '\n}';
+    };
+    
+    // Generate the updated object string using our custom formatter
+    const updatedLunchReadsStr = formatJsObject(lunchReadsObj);
     
     // Create the new file content
     const updatedContent = `export const lunchReads = ${updatedLunchReadsStr};\n`;
