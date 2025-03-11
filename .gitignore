@@ -33,8 +33,14 @@ yarn-error.log*
 Icon
 ._*
 
-# Backend
-/backend
+# Backend - Ignore most things but keep essential files
+/backend/*
+!/backend/package.json
+!/backend/package-lock.json
+!/backend/scripts/
+!/backend/cmd/
+/backend/.env
+/backend/node_modules/
 
 # Logs
 logs
