@@ -141,10 +141,14 @@ claudeClient.interceptors.response.use(
 
 // Utility function for retrying failed API calls
 async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, options = {}) {
-  const { retryableStatusCodes = [408, 429, 500, 502, 503, 504, 529], retryableErrorCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'] } = options;
+  const { 
+    retryableStatusCodes = [408, 429, 500, 502, 503, 504, 529], 
+    retryableErrorCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'],
+    statusCodeSpecificConfig = {}
+  } = options;
   
   // Higher initial delay for overloaded status (529)
-  const overloadedRetryDelay = 5000; // 5 seconds initial delay for overloaded status
+  const overloadedRetryDelay = options.overloadedRetryDelay || 5000; // 5 seconds initial delay for overloaded status
   
   let lastError;
   let operationId = crypto.randomBytes(4).toString('hex');
@@ -177,6 +181,16 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       if (error.response && error.response.status) {
         const statusCode = error.response.status;
         const shouldRetryHeader = error.response.headers && error.response.headers['x-should-retry'];
+        
+        // Check for status-specific config
+        const specificConfig = statusCodeSpecificConfig[statusCode];
+        if (specificConfig) {
+          log.debug(`Using status-specific retry config for status ${statusCode}:`, specificConfig);
+          if (specificConfig.initialDelay) {
+            currentRetryDelay = specificConfig.initialDelay;
+            log.debug(`Applied custom initial delay of ${currentRetryDelay}ms for status ${statusCode}`);
+          }
+        }
         
         log.debug(`Error response details for operation [${operationId}]:`, {
           statusCode,
@@ -268,6 +282,28 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       let delay = shouldRetry ? 
         currentRetryDelay * Math.pow(2, attempt - 1) + jitter : // Exponential backoff for retryable errors
         currentRetryDelay + jitter; // Fixed delay for other errors
+      
+      // Apply status-specific configurations for backoff
+      if (error.response?.status) {
+        const statusCode = error.response.status;
+        const specificConfig = statusCodeSpecificConfig[statusCode];
+        
+        if (specificConfig) {
+          log.debug(`Applying status-specific backoff for status ${statusCode}`);
+          
+          // Apply custom backoff factor if specified
+          if (specificConfig.backoffFactor) {
+            delay = currentRetryDelay * Math.pow(specificConfig.backoffFactor, attempt - 1) + jitter;
+            log.debug(`Applied custom backoff factor (${specificConfig.backoffFactor}), new delay: ${Math.round(delay)}ms`);
+          }
+          
+          // Apply max delay if specified
+          if (specificConfig.maxDelay && delay > specificConfig.maxDelay) {
+            delay = specificConfig.maxDelay + jitter;
+            log.debug(`Capped delay at maxDelay (${specificConfig.maxDelay}ms)`);
+          }
+        }
+      }
       
       // Special handling for 529: if delay is too short, increase it
       if (error.response?.status === 529 && delay < overloadedRetryDelay) {
@@ -437,20 +473,40 @@ Target a technical audience with varying levels of expertise.`;
   try {
     log.info(`Starting API call for ${language} content generation on topic: ${topic.name}`);
     
-    // Use retry function for the API call
+    // Configure enhanced retry options specifically for content generation
+    const retryOptions = {
+      retryableStatusCodes: [408, 429, 500, 502, 503, 504, 529], // Explicitly include 529
+      retryableErrorCodes: ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'],
+      overloadedRetryDelay: 5000, // 5 seconds initial delay for overloaded status
+      statusCodeSpecificConfig: {
+        529: {
+          // Special handling for overloaded status
+          initialDelay: 5000,
+          maxDelay: 30000,
+          backoffFactor: 2.5, // More aggressive backoff for overloaded status
+        }
+      }
+    };
+    
+    log.debug(`Content generation retry configuration for ${language}:`, retryOptions);
+    
+    // Use retry function for the API call with enhanced options
     const response = await retryOperation(async () => {
       log.info(`Making API request for ${language} content...`);
+      log.debug(`API request for ${language} with topic: ${topic.name}`, { requestTime: new Date().toISOString() });
+      
       const response = await claudeClient.post('/messages', requestData);
       const duration = Date.now() - startTime;
       log.info(`API call for ${language} content completed in ${duration}ms`);
       
       // Validate response format for Claude API
       if (!response.data?.content?.[0]?.text) {
+        log.error(`Invalid API response format for ${language}`, { response: response.data });
         throw new Error('Invalid API response format');
       }
       
       return response;
-    });
+    }, 5); // Increase max retries to 5 for better handling of temporary overloaded states
     
     // Successfully received response
     log.info(`Successfully generated ${language} content for topic: ${topic.name}`);
@@ -512,6 +568,16 @@ Target a technical audience with varying levels of expertise.`;
       log.error(`API Authentication failed for ${language} content generation`);
       throw new Error('API key authentication failed');
     }
+    
+    // Special handling for status 529 (Overloaded)
+    if (error.response?.status === 529) {
+      log.error(`API Overloaded (${language}): Status 529 received`, {
+        status: error.response.status,
+        headers: error.response.headers,
+        retryInfo: 'This status indicates the API is temporarily overloaded. The request should be retried with backoff.'
+      });
+    }
+    
     // Enhanced error logging with more details
     if (error.response) {
       // The request was made and the server responded with a status code
@@ -519,7 +585,8 @@ Target a technical audience with varying levels of expertise.`;
       log.error(`API Error (${language}): Status ${error.response.status}`, {
         status: error.response.status,
         data: error.response.data,
-        headers: error.response.headers
+        headers: error.response.headers,
+        shouldRetry: error.response.headers['x-should-retry'] === 'true' || error.response.status === 529
       });
     } else if (error.request) {
       // The request was made but no response was received
