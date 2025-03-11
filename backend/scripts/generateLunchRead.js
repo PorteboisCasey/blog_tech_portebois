@@ -555,24 +555,16 @@ async function updateLunchReadsFile(newLunchRead) {
     // Parse the existing object safely
     let lunchReadsObj;
     try {
-      // Convert JS object notation to valid JSON by:
-      // 1. Adding double quotes around keys (including those with hyphens)
-      // 2. Converting single quotes around values to double quotes
-      const jsonString = objectContent
-        // Handle unquoted keys or single-quoted keys - capture key name including hyphens
-        .replace(/([a-zA-Z0-9_-]+):/g, '"$1":')
-        // Handle keys that are already double-quoted
-        .replace(/"([^"]+)":/g, '"$1":')
-        // Convert single-quoted values to double-quoted
-        .replace(/:\s*'([^']*?)'/g, ': "$1"')
-        // Handle nested object properties
-        .replace(/,\s*([a-zA-Z0-9_-]+):/g, ', "$1":');
-        
-      // Parse as JSON
-      lunchReadsObj = JSON.parse(jsonString);
+      // Use a safer approach to convert JS object to an actual object
+      // Create a temporary function that returns the parsed object
+      const objStr = `return ${objectContent}`;
+      // Use Function constructor to create a function that returns the parsed object
+      const objFn = new Function(objStr);
+      // Execute the function to get the parsed object
+      lunchReadsObj = objFn();
     } catch (error) {
       log.error('Error parsing lunchReads object', error);
-      throw new Error(`Failed to parse lunchReads object: ${error.message}`);
+      throw new Error(`Failed to parse lunchReads object: ${error.message}. The file format should be 'export const lunchReads = {...};'`);
     }
     
     // Merge the new lunch read with existing ones
@@ -580,8 +572,8 @@ async function updateLunchReadsFile(newLunchRead) {
     lunchReadsObj[newLunchReadId] = newLunchRead[newLunchReadId];
     
     // Convert back to string (pretty format)
-    // Use a custom formatter that handles hyphenated keys properly
-    const updatedLunchReadsStr = JSON.stringify(lunchReadsObj, null, 2)
+    // Use a custom formatter that properly maintains JavaScript object format
+    let updatedLunchReadsStr = JSON.stringify(lunchReadsObj, null, 2)
       // Convert normal keys to unquoted format (but keep hyphenated keys quoted)
       .replace(/"([a-zA-Z0-9_]+)":/g, '$1:')
       // Convert remaining double quotes to single quotes for consistency
