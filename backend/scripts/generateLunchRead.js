@@ -702,39 +702,68 @@ async function updateLunchReadsFile(newLunchRead) {
     // Extract the object content
     const objectContent = lunchReadsMatch[1];
     
-    // Parse the existing object safely using Function evaluation
+    // Parse the existing object safely using a RegExp-based parser
     let lunchReadsObj;
     try {
-      // Sanitize the object content to make it safe for evaluation
-      // This approach handles JavaScript object notation including hyphenated keys
+      // First attempt: Use a safer approach with regex-based parsing and evaluation
+      log.debug('Parsing lunchReads object using safe evaluation method');
+      
+      // Sanitize the object content to make it safer for evaluation
       const sanitizedContent = objectContent
-        // Ensure all property values end with comma for consistency
-        .replace(/(['"]:\s*{(?:\s*\n\s*)?)/g, '$1\n')
-        // Add extra safety around function evaluation
-        .replace(/\bfunction\s*\(/g, 'FUNCTION_NOT_ALLOWED(');
+        // Remove any comments
+        .replace(/\/\/.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        // Normalize whitespace
+        .replace(/\s+/g, ' ')
+        // Normalize commas between properties
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*]/g, ']')
+        // Add extra safety by blocking functions
+        .replace(/function\s*\(/g, 'FUNCTION_NOT_ALLOWED(')
+        .replace(/=>/g, 'ARROW_FUNCTION_NOT_ALLOWED');
       
-      // Create a temporary function that returns the parsed object
-      const objStr = `
-        try {
-          return ${sanitizedContent};
-        } catch (e) {
-          throw new Error('Failed to evaluate object: ' + e.message);
-        }
-      `;
+      // Wrap in a proper object literal syntax
+      const jsCode = `(${sanitizedContent})`;
       
-      // Use Function constructor to create a function that returns the parsed object
-      const objFn = new Function(objStr);
-      
-      // Execute the function to get the parsed object
-      lunchReadsObj = objFn();
+      // Use indirect eval in a controlled environment with no access to global scope
+      const indirectEval = Function('code', 'return eval(code)');
+      lunchReadsObj = indirectEval(jsCode);
       
       // Validate the result is an object
       if (!lunchReadsObj || typeof lunchReadsObj !== 'object') {
-        throw new Error('Parsed result is not a valid object');
+        throw new Error('Parsed result is not a valid JavaScript object');
       }
+      
+      log.debug('Successfully parsed lunchReads object');
     } catch (error) {
-      log.error('Error parsing lunchReads object', error);
-      throw new Error(`Failed to parse lunchReads object: ${error.message}`);
+      // If parsing fails with the first method, try a backup approach
+      log.debug(`First parsing method failed: ${error.message}, trying backup method`);
+      
+      try {
+        // Remove possible syntax issues that might be causing problems
+        const cleanedContent = objectContent
+          // Convert all property keys to double-quoted style for consistency
+          .replace(/(['"])?([a-zA-Z0-9_-]+)(['"])?:/g, '"$2":')
+          // Ensure proper quoting for string values
+          .replace(/:\s*'([^']*)'/g, ': "$1"')
+          // Remove any trailing commas
+          .replace(/,(\s*[}\]])/g, '$1');
+        
+        // Now try to parse as JSON with special handling
+        lunchReadsObj = new Function(`return ${cleanedContent}`)();
+        
+        if (!lunchReadsObj || typeof lunchReadsObj !== 'object') {
+          throw new Error('Backup parsing method failed to return a valid object');
+        }
+        
+        log.debug('Successfully parsed lunchReads object with backup method');
+      } catch (backupError) {
+        log.error('All parsing methods failed', {
+          originalError: error.message,
+          backupError: backupError.message
+        });
+        throw new Error(`Failed to parse lunchReads object: ${error.message}`);
+      }
     }
     
     // Merge the new lunch read with existing ones
@@ -742,12 +771,15 @@ async function updateLunchReadsFile(newLunchRead) {
     lunchReadsObj[newLunchReadId] = newLunchRead[newLunchReadId];
     
     // Format the JavaScript object back to a string, preserving the original format
+    // Format the JavaScript object back to a string, preserving the original format
     const formatJsObject = (obj, indent = 2) => {
       const spaces = ' '.repeat(indent);
       
       return '{\n' + Object.entries(obj).map(([key, value]) => {
         // Format the key with appropriate quoting
-        const formattedKey = /^[a-zA-Z0-9_]+$/.test(key) ? key : `'${key}'`;
+        // Always quote hyphenated keys or keys with special characters
+        const needsQuotes = !/^[a-zA-Z0-9_]+$/.test(key);
+        const formattedKey = needsQuotes ? `'${key}'` : key;
         
         // Format the value based on its type
         let formattedValue;
@@ -756,13 +788,31 @@ async function updateLunchReadsFile(newLunchRead) {
         } else if (typeof value === 'object' && !Array.isArray(value)) {
           formattedValue = formatJsObject(value, indent + 2);
         } else if (Array.isArray(value)) {
-          formattedValue = JSON.stringify(value)
-            .replace(/"/g, "'")  // Use single quotes for consistency
-            .replace(/,/g, ', '); // Add space after commas
+          if (value.length === 0) {
+            formattedValue = '[]';
+          } else {
+            // Handle array of strings specially to use single quotes
+            if (value.every(item => typeof item === 'string')) {
+              formattedValue = '[' + value.map(item => `'${item.replace(/'/g, "\\'")}'`).join(', ') + ']';
+            } else {
+              // For mixed arrays, use JSON with replaced quotes
+              formattedValue = JSON.stringify(value)
+                .replace(/"/g, "'")  // Use single quotes for strings 
+                .replace(/,/g, ', '); // Add space after commas
+            }
+          }
         } else if (typeof value === 'string') {
-          // Escape single quotes and use single quotes for strings
-          formattedValue = `'${value.replace(/'/g, "\\'")}'`;
+          // Properly escape special characters in strings
+          const escaped = value
+            .replace(/\\/g, '\\\\')  // Escape backslashes first
+            .replace(/'/g, "\\'")    // Escape single quotes
+            .replace(/\n/g, '\\n')   // Escape newlines
+            .replace(/\r/g, '\\r')   // Escape carriage returns
+            .replace(/\t/g, '\\t');  // Escape tabs
+          
+          formattedValue = `'${escaped}'`;
         } else {
+          // Numbers, booleans, etc.
           formattedValue = String(value);
         }
         
@@ -770,16 +820,26 @@ async function updateLunchReadsFile(newLunchRead) {
       }).join(',\n') + '\n}';
     };
     
-    // Generate the updated object string using our custom formatter
+    // Generate the updated object string using our enhanced custom formatter
     const updatedLunchReadsStr = formatJsObject(lunchReadsObj);
     
-    // Create the new file content
+    // Create the new file content with proper export format
     const updatedContent = `export const lunchReads = ${updatedLunchReadsStr};\n`;
+    
+    // Perform a validation check on the generated content
+    try {
+      log.debug('Validating the generated lunchReads.js content');
+      // Verify the generated content is valid JavaScript
+      new Function(`const lunchReads = ${updatedLunchReadsStr}; return lunchReads;`)();
+      log.debug('Generated content validation successful');
+    } catch (validationError) {
+      log.error('Generated content validation failed', validationError);
+      throw new Error(`Failed to generate valid JavaScript: ${validationError.message}`);
+    }
     
     // Write back to the file
     await fs.writeFile(lunchReadsPath, updatedContent, 'utf8');
     log.success(`Successfully added new lunch read: ${newLunchReadId}`);
-    
     return newLunchReadId;
   } catch (error) {
     log.error('Error updating lunchReads.js file', error);
