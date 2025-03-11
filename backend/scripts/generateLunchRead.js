@@ -336,7 +336,6 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
         });
         throw error; // Don't retry non-retryable errors
       }
-      }
     }
   }
   
