@@ -141,7 +141,7 @@ claudeClient.interceptors.response.use(
 
 // Utility function for retrying failed API calls
 async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, options = {}) {
-  const { retryableStatusCodes = [408, 429, 500, 502, 503, 504], retryableErrorCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'] } = options;
+  const { retryableStatusCodes = [408, 429, 500, 502, 503, 504, 529], retryableErrorCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'] } = options;
   
   let lastError;
   let operationId = crypto.randomBytes(4).toString('hex');
@@ -164,15 +164,22 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       
       // Check HTTP status code (server errors, throttling)
       if (error.response && error.response.status) {
-        shouldRetry = retryableStatusCodes.includes(error.response.status);
-        retryReason = shouldRetry ? 
-          `retryable status code ${error.response.status}` : 
-          `non-retryable status code ${error.response.status}`;
+        // Check for x-should-retry header first
+        const shouldRetryHeader = error.response.headers && error.response.headers['x-should-retry'];
+        if (shouldRetryHeader === 'true') {
+          shouldRetry = true;
+          retryReason = `x-should-retry header is true with status code ${error.response.status}`;
+        } else {
+          // Fall back to status code check
+          shouldRetry = retryableStatusCodes.includes(error.response.status);
+          retryReason = shouldRetry ? 
+            `retryable status code ${error.response.status}` : 
+            `non-retryable status code ${error.response.status}`;
+        }
         
-        // Special handling for rate limits
-        if (error.response.status === 429) {
-          // Extract retry-after header if available
-          const retryAfter = error.response.headers['retry-after'];
+        // Check for retry-after header for any retryable response
+        if (shouldRetry) {
+          const retryAfter = error.response.headers && error.response.headers['retry-after'];
           if (retryAfter && !isNaN(parseInt(retryAfter, 10))) {
             // Override delay with server-specified value
             retryDelay = parseInt(retryAfter, 10) * 1000;
