@@ -11,6 +11,8 @@ jobs:
   generate-lunch-read:
     runs-on: ubuntu-latest
     name: Generate and Publish Lunch Read
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     
     steps:
       - name: Checkout code
@@ -31,8 +33,6 @@ jobs:
           npm ci
       
       - name: Generate new lunch read
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           cd backend
           node scripts/generateLunchRead.js
