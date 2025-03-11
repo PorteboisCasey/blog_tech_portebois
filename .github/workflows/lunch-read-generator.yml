@@ -1,0 +1,66 @@
+name: Daily Lunch Read Generator
+
+on:
+  schedule:
+    # Runs at 8am UTC every day
+    - cron: '0 8 * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  generate-lunch-read:
+    runs-on: ubuntu-latest
+    name: Generate and Publish Lunch Read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm ci
+      
+      - name: Generate new lunch read
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          cd backend
+          node scripts/generateLunchRead.js
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git diff --quiet src/content/lunchReads.js || echo "changes=true" >> $GITHUB_OUTPUT
+      
+      - name: Configure Git
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git add src/content/lunchReads.js
+          git commit -m "Add daily lunch read for $(date +%Y-%m-%d)"
+          git push
+      
+      - name: Report status
+        if: always()
+        run: |
+          if [ "${{ steps.check_changes.outputs.changes }}" == "true" ]; then
+            echo "✅ Successfully generated and published a new lunch read!"
+          else
+            echo "🟡 No changes were made to lunch reads. This could be normal if no new content was generated."
+          fi
+
