@@ -150,6 +150,13 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
   let operationId = crypto.randomBytes(4).toString('hex');
   
   log.info(`Starting operation [${operationId}] with max ${maxRetries} retries`);
+  log.debug(`Retry configuration:`, {
+    maxRetries,
+    baseRetryDelay: retryDelay,
+    overloadedRetryDelay,
+    retryableStatusCodes,
+    retryableErrorCodes
+  });
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -171,31 +178,53 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
         const statusCode = error.response.status;
         const shouldRetryHeader = error.response.headers && error.response.headers['x-should-retry'];
         
-        // Check for x-should-retry header first - this overrides status code checks
-        if (shouldRetryHeader === 'true') {
+        log.debug(`Error response details for operation [${operationId}]:`, {
+          statusCode,
+          headers: error.response.headers,
+          retryableStatusCodes,
+          is529InRetryableCodes: retryableStatusCodes.includes(529),
+          statusCodeInRetryableList: retryableStatusCodes.includes(statusCode),
+          xShouldRetryHeader: shouldRetryHeader
+        });
+        
+        // Always retry on status code 529 (overloaded)
+        if (statusCode === 529) {
+          shouldRetry = true;
+          retryReason = `overloaded status code 529 (always retryable)`;
+          currentRetryDelay = overloadedRetryDelay;
+          log.debug(`Will retry operation [${operationId}] based on overloaded status code 529`);
+        }
+        // Check for x-should-retry header next - this overrides other status code checks
+        else if (shouldRetryHeader === 'true') {
           shouldRetry = true;
           retryReason = `x-should-retry header is true with status code ${statusCode}`;
+          log.debug(`Will retry operation [${operationId}] based on x-should-retry header being 'true'`);
         } else {
           // Fall back to status code check
           shouldRetry = retryableStatusCodes.includes(statusCode);
           retryReason = shouldRetry ? 
             `retryable status code ${statusCode}` : 
             `non-retryable status code ${statusCode}`;
+          
+          log.debug(`Status code ${statusCode} check for operation [${operationId}]:`, {
+            isRetryable: shouldRetry,
+            statusCodeList: retryableStatusCodes.join(', ')
+          });
         }
-        
-        // Use higher initial delay for overloaded status
-        if (shouldRetry && statusCode === 529) {
-          currentRetryDelay = overloadedRetryDelay;
-          retryReason += ` (using increased delay for overloaded status)`;
-        }
-        
         // Check for retry-after header for any retryable response
         if (shouldRetry) {
           const retryAfter = error.response.headers && error.response.headers['retry-after'];
+          log.debug(`Checking retry-after header for operation [${operationId}]:`, {
+            retryAfterHeaderPresent: !!retryAfter,
+            retryAfterValue: retryAfter
+          });
+          
           if (retryAfter && !isNaN(parseInt(retryAfter, 10))) {
             // Override delay with server-specified value
-            currentRetryDelay = parseInt(retryAfter, 10) * 1000;
+            const parsedRetryAfter = parseInt(retryAfter, 10);
+            currentRetryDelay = parsedRetryAfter * 1000;
             retryReason += ` (using retry-after: ${retryAfter}s)`;
+            log.debug(`Using server-specified retry delay of ${parsedRetryAfter}s (${currentRetryDelay}ms)`);
           }
         }
       }
@@ -207,9 +236,20 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
           `non-retryable error code ${error.code}`;
       }
       
-      // Skip this check if x-should-retry header is true
+      // Skip client error checking if x-should-retry header is true or status is 529
       const xShouldRetryHeader = error.response?.headers?.['x-should-retry'];
-      if (xShouldRetryHeader !== 'true' && 
+      const status529 = error.response?.status === 529;
+      log.debug(`Evaluating client error conditions for operation [${operationId}]:`, {
+        statusCode: error.response?.status,
+        is4xxError: error.response && error.response.status >= 400 && error.response.status < 500,
+        xShouldRetryHeader,
+        status529,
+        shouldRetry,
+        inRetryableList: error.response ? retryableStatusCodes.includes(error.response.status) : false
+      });
+      
+      // Never skip retry for 529 status code
+      if (!status529 && xShouldRetryHeader !== 'true' && 
           error.response && 
           error.response.status >= 400 && 
           error.response.status < 500 && 
@@ -225,16 +265,39 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       }
       // Calculate backoff delay with jitter
       const jitter = Math.random() * 500;
-      const delay = shouldRetry ? 
+      let delay = shouldRetry ? 
         currentRetryDelay * Math.pow(2, attempt - 1) + jitter : // Exponential backoff for retryable errors
         currentRetryDelay + jitter; // Fixed delay for other errors
       
+      // Special handling for 529: if delay is too short, increase it
+      if (error.response?.status === 529 && delay < overloadedRetryDelay) {
+        delay = overloadedRetryDelay + jitter;
+        log.debug(`Enforcing minimum delay of ${overloadedRetryDelay}ms for status 529`);
+      }
       // Log retry info
       if (shouldRetry) {
         log.info(`Operation [${operationId}] retry ${attempt}/${maxRetries} scheduled after ${Math.round(delay)}ms - Reason: ${retryReason}`);
+        log.debug(`Retry decision details for operation [${operationId}]:`, {
+          attempt,
+          maxRetries,
+          delay: Math.round(delay),
+          baseDelay: currentRetryDelay,
+          retryReason,
+          statusCode: error.response?.status,
+          errorCode: error.code,
+          retryableStatusCodes,
+          is529Retryable: retryableStatusCodes.includes(529)
+        });
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         log.error(`Operation [${operationId}] failed, reason: ${retryReason}, error: ${error.message}`);
+        log.debug(`Non-retry decision details for operation [${operationId}]:`, {
+          statusCode: error.response?.status,
+          errorCode: error.code,
+          retryableStatusCodes: retryableStatusCodes.join(', '),
+          xShouldRetryHeader: error.response?.headers?.['x-should-retry'],
+          is529InRetryableList: retryableStatusCodes.includes(529)
+        });
         throw error; // Don't retry non-retryable errors
       }
       }
@@ -248,10 +311,9 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
 const log = {
   info: (message) => console.log(`[INFO] ${new Date().toISOString()}: ${message}`),
   debug: (message, details) => {
-    if (process.env.DEBUG === 'true') {
-      const detailsStr = details ? ` ${JSON.stringify(details, null, 2)}` : '';
-      console.log(`[DEBUG] ${new Date().toISOString()}: ${message}${detailsStr}`);
-    }
+    // Always log debug messages for retry logic, even without DEBUG=true
+    const detailsStr = details ? ` ${JSON.stringify(details, null, 2)}` : '';
+    console.log(`[DEBUG] ${new Date().toISOString()}: ${message}${detailsStr}`);
   },
   error: (message, details) => {
     const detailsStr = details ? ` ${typeof details === 'object' ? JSON.stringify(details, (key, value) => {
