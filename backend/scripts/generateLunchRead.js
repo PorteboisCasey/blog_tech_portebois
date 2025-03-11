@@ -143,6 +143,9 @@ claudeClient.interceptors.response.use(
 async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, options = {}) {
   const { retryableStatusCodes = [408, 429, 500, 502, 503, 504, 529], retryableErrorCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ECONNREFUSED'] } = options;
   
+  // Higher initial delay for overloaded status (529)
+  const overloadedRetryDelay = 5000; // 5 seconds initial delay for overloaded status
+  
   let lastError;
   let operationId = crypto.randomBytes(4).toString('hex');
   
@@ -161,20 +164,29 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       // Determine if we should retry based on the error
       let shouldRetry = false;
       let retryReason = '';
+      let currentRetryDelay = retryDelay;
       
       // Check HTTP status code (server errors, throttling)
       if (error.response && error.response.status) {
-        // Check for x-should-retry header first
+        const statusCode = error.response.status;
         const shouldRetryHeader = error.response.headers && error.response.headers['x-should-retry'];
+        
+        // Check for x-should-retry header first - this overrides status code checks
         if (shouldRetryHeader === 'true') {
           shouldRetry = true;
-          retryReason = `x-should-retry header is true with status code ${error.response.status}`;
+          retryReason = `x-should-retry header is true with status code ${statusCode}`;
         } else {
           // Fall back to status code check
-          shouldRetry = retryableStatusCodes.includes(error.response.status);
+          shouldRetry = retryableStatusCodes.includes(statusCode);
           retryReason = shouldRetry ? 
-            `retryable status code ${error.response.status}` : 
-            `non-retryable status code ${error.response.status}`;
+            `retryable status code ${statusCode}` : 
+            `non-retryable status code ${statusCode}`;
+        }
+        
+        // Use higher initial delay for overloaded status
+        if (shouldRetry && statusCode === 529) {
+          currentRetryDelay = overloadedRetryDelay;
+          retryReason += ` (using increased delay for overloaded status)`;
         }
         
         // Check for retry-after header for any retryable response
@@ -182,7 +194,7 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
           const retryAfter = error.response.headers && error.response.headers['retry-after'];
           if (retryAfter && !isNaN(parseInt(retryAfter, 10))) {
             // Override delay with server-specified value
-            retryDelay = parseInt(retryAfter, 10) * 1000;
+            currentRetryDelay = parseInt(retryAfter, 10) * 1000;
             retryReason += ` (using retry-after: ${retryAfter}s)`;
           }
         }
@@ -195,8 +207,10 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
           `non-retryable error code ${error.code}`;
       }
       
-      // Don't retry for client errors (4xx) except for specific retryable ones
-      if (error.response && 
+      // Skip this check if x-should-retry header is true
+      const xShouldRetryHeader = error.response?.headers?.['x-should-retry'];
+      if (xShouldRetryHeader !== 'true' && 
+          error.response && 
           error.response.status >= 400 && 
           error.response.status < 500 && 
           !retryableStatusCodes.includes(error.response.status)) {
@@ -209,12 +223,11 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
         log.error(`Operation [${operationId}] failed after all ${maxRetries} retry attempts`);
         throw error;
       }
-      
       // Calculate backoff delay with jitter
       const jitter = Math.random() * 500;
       const delay = shouldRetry ? 
-        retryDelay * Math.pow(2, attempt - 1) + jitter : // Exponential backoff for retryable errors
-        retryDelay + jitter; // Fixed delay for other errors
+        currentRetryDelay * Math.pow(2, attempt - 1) + jitter : // Exponential backoff for retryable errors
+        currentRetryDelay + jitter; // Fixed delay for other errors
       
       // Log retry info
       if (shouldRetry) {
@@ -223,6 +236,7 @@ async function retryOperation(operation, maxRetries = 3, retryDelay = 2000, opti
       } else {
         log.error(`Operation [${operationId}] failed, reason: ${retryReason}, error: ${error.message}`);
         throw error; // Don't retry non-retryable errors
+      }
       }
     }
   }
