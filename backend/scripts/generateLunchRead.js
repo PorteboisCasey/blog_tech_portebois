@@ -681,173 +681,7 @@ async function generateCompleteLunchRead() {
   }
 }
 
-// Update lunchReads.js with the new content
-async function updateLunchReadsFile(newLunchRead) {
-  try {
-    const lunchReadsPath = path.resolve(__dirname, '../../src/content/lunchReads.js');
-    
-    log.info(`Reading existing lunchReads.js file from: ${lunchReadsPath}`);
-    let content = await fs.readFile(lunchReadsPath, 'utf8');
-    
-    // Remove line numbers if they exist
-    content = content.replace(/^\d+\|/gm, '');
-    
-    // Parse the existing lunchReads object
-    const lunchReadsMatch = content.match(/export const lunchReads = ({[\s\S]+?});/);
-    if (!lunchReadsMatch) {
-      throw new Error('Could not find lunchReads object in file');
-    }
-    
-    // Extract the object content
-    const objectContent = lunchReadsMatch[1];
-    
-    // Parse the existing object safely using a RegExp-based parser
-    let lunchReadsObj;
-    try {
-      // First attempt: Use a safer approach with regex-based parsing and evaluation
-      log.debug('Parsing lunchReads object using safe evaluation method');
-      
-      // Sanitize the object content to make it safer for evaluation
-      const sanitizedContent = objectContent
-        // Remove any comments
-        .replace(/\/\/.*$/gm, '')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        // Normalize whitespace
-        .replace(/\s+/g, ' ')
-        // Normalize commas between properties
-        .replace(/,\s*}/g, '}')
-        .replace(/,\s*]/g, ']')
-        // Add extra safety by blocking functions
-        .replace(/function\s*\(/g, 'FUNCTION_NOT_ALLOWED(')
-        .replace(/=>/g, 'ARROW_FUNCTION_NOT_ALLOWED');
-      
-      // Wrap in a proper object literal syntax
-      const jsCode = `(${sanitizedContent})`;
-      
-      // Use indirect eval in a controlled environment with no access to global scope
-      const indirectEval = Function('code', 'return eval(code)');
-      lunchReadsObj = indirectEval(jsCode);
-      
-      // Validate the result is an object
-      if (!lunchReadsObj || typeof lunchReadsObj !== 'object') {
-        throw new Error('Parsed result is not a valid JavaScript object');
-      }
-      
-      log.debug('Successfully parsed lunchReads object');
-    } catch (error) {
-      // If parsing fails with the first method, try a backup approach
-      log.debug(`First parsing method failed: ${error.message}, trying backup method`);
-      
-      try {
-        // Remove possible syntax issues that might be causing problems
-        const cleanedContent = objectContent
-          // Convert all property keys to double-quoted style for consistency
-          .replace(/(['"])?([a-zA-Z0-9_-]+)(['"])?:/g, '"$2":')
-          // Ensure proper quoting for string values
-          .replace(/:\s*'([^']*)'/g, ': "$1"')
-          // Remove any trailing commas
-          .replace(/,(\s*[}\]])/g, '$1');
-        
-        // Now try to parse as JSON with special handling
-        lunchReadsObj = new Function(`return ${cleanedContent}`)();
-        
-        if (!lunchReadsObj || typeof lunchReadsObj !== 'object') {
-          throw new Error('Backup parsing method failed to return a valid object');
-        }
-        
-        log.debug('Successfully parsed lunchReads object with backup method');
-      } catch (backupError) {
-        log.error('All parsing methods failed', {
-          originalError: error.message,
-          backupError: backupError.message
-        });
-        throw new Error(`Failed to parse lunchReads object: ${error.message}`);
-      }
-    }
-    
-    // Merge the new lunch read with existing ones
-    const newLunchReadId = Object.keys(newLunchRead)[0];
-    lunchReadsObj[newLunchReadId] = newLunchRead[newLunchReadId];
-    
-    // Format the JavaScript object back to a string, preserving the original format
-    // Format the JavaScript object back to a string, preserving the original format
-    const formatJsObject = (obj, indent = 2) => {
-      const spaces = ' '.repeat(indent);
-      
-      return '{\n' + Object.entries(obj).map(([key, value]) => {
-        // Format the key with appropriate quoting
-        // Always quote hyphenated keys or keys with special characters
-        const needsQuotes = !/^[a-zA-Z0-9_]+$/.test(key);
-        const formattedKey = needsQuotes ? `'${key}'` : key;
-        
-        // Format the value based on its type
-        let formattedValue;
-        if (value === null) {
-          formattedValue = 'null';
-        } else if (typeof value === 'object' && !Array.isArray(value)) {
-          formattedValue = formatJsObject(value, indent + 2);
-        } else if (Array.isArray(value)) {
-          if (value.length === 0) {
-            formattedValue = '[]';
-          } else {
-            // Handle array of strings specially to use single quotes
-            if (value.every(item => typeof item === 'string')) {
-              formattedValue = '[' + value.map(item => `'${item.replace(/'/g, "\\'")}'`).join(', ') + ']';
-            } else {
-              // For mixed arrays, use JSON with replaced quotes
-              formattedValue = JSON.stringify(value)
-                .replace(/"/g, "'")  // Use single quotes for strings 
-                .replace(/,/g, ', '); // Add space after commas
-            }
-          }
-        } else if (typeof value === 'string') {
-          // Properly escape special characters in strings
-          const escaped = value
-            .replace(/\\/g, '\\\\')  // Escape backslashes first
-            .replace(/'/g, "\\'")    // Escape single quotes
-            .replace(/\n/g, '\\n')   // Escape newlines
-            .replace(/\r/g, '\\r')   // Escape carriage returns
-            .replace(/\t/g, '\\t');  // Escape tabs
-          
-          formattedValue = `'${escaped}'`;
-        } else {
-          // Numbers, booleans, etc.
-          formattedValue = String(value);
-        }
-        
-        return `${spaces}${formattedKey}: ${formattedValue}`;
-      }).join(',\n') + '\n}';
-    };
-    
-    // Generate the updated object string using our enhanced custom formatter
-    const updatedLunchReadsStr = formatJsObject(lunchReadsObj);
-    
-    // Create the new file content with proper export format
-    const updatedContent = `export const lunchReads = ${updatedLunchReadsStr};\n`;
-    
-    // Perform a validation check on the generated content
-    try {
-      log.debug('Validating the generated lunchReads.js content');
-      // Verify the generated content is valid JavaScript
-      new Function(`const lunchReads = ${updatedLunchReadsStr}; return lunchReads;`)();
-      log.debug('Generated content validation successful');
-    } catch (validationError) {
-      log.error('Generated content validation failed', validationError);
-      throw new Error(`Failed to generate valid JavaScript: ${validationError.message}`);
-    }
-    
-    // Write back to the file
-    await fs.writeFile(lunchReadsPath, updatedContent, 'utf8');
-    log.success(`Successfully added new lunch read: ${newLunchReadId}`);
-    return newLunchReadId;
-  } catch (error) {
-    log.error('Error updating lunchReads.js file', error);
-    throw new Error(`Failed to update lunchReads.js: ${error.message}`);
-  }
-}
-
-// Create a backup of the lunchReads.js file
-async function createBackup() {
+// Update lunchReads.js with the new content using simple string manipulation
   try {
     const lunchReadsPath = path.resolve(__dirname, '../../src/content/lunchReads.js');
     const backupPath = path.resolve(__dirname, `../../src/content/lunchReads.backup-${Date.now()}.js`);
@@ -925,6 +759,124 @@ async function validateApiConnection() {
 }
 
 // Main function to run the script
+/**
+ * Format a lunch read entry object into a properly formatted string
+ * @param {Object} lunchRead - The lunch read object to format
+ * @param {number} indent - The number of spaces to indent
+ * @returns {string} - Formatted string representation of the lunch read
+ */
+function formatLunchReadEntry(lunchRead, indent = 2) {
+  const spaces = ' '.repeat(indent);
+  
+  // Helper function to properly escape string values
+  const escapeString = (str) => {
+    if (typeof str !== 'string') return str;
+    // Replace backslashes first to avoid double-escaping
+    return str
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+  };
+
+  // Helper function to format a value based on its type
+  const formatValue = (value, currentIndent) => {
+    const indentSpaces = ' '.repeat(currentIndent);
+    const nextIndentSpaces = ' '.repeat(currentIndent + indent);
+
+    if (value === null || value === undefined) {
+      return 'null';
+    } else if (typeof value === 'string') {
+      return `"${escapeString(value)}"`;
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      return value.toString();
+    } else if (Array.isArray(value)) {
+      if (value.length === 0) return '[]';
+      
+      const items = value.map(item => 
+        `${nextIndentSpaces}${formatValue(item, currentIndent + indent)}`
+      ).join(',\n');
+      
+      return `[\n${items}\n${indentSpaces}]`;
+    } else if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (keys.length === 0) return '{}';
+      
+      const entries = keys.map(key => {
+        const formattedKey = key.includes('-') ? `"${key}"` : key;
+        return `${nextIndentSpaces}${formattedKey}: ${formatValue(value[key], currentIndent + indent)}`;
+      }).join(',\n');
+      
+      return `{\n${entries}\n${indentSpaces}}`;
+    } else {
+      return String(value);
+    }
+  };
+
+  // Start formatting the lunch read entry
+  const id = lunchRead.id ? `"${lunchRead.id}"` : `"${lunchRead.id}"`;
+  const formattedEntry = `${spaces}${id}: ${formatValue(lunchRead, indent + id.length + 2)}`;
+
+  return formattedEntry;
+}
+
+/**
+ * Update the lunchReads.js file with a new lunch read entry
+ * @param {Object} newLunchRead - New lunch read entry to add
+ * @returns {Promise<string>} - Promise that resolves with the lunch read ID
+ */
+async function updateLunchReadsFile(newLunchRead) {
+  try {
+    // Determine the lunchReads file path internally
+    const lunchReadsPath = path.resolve(__dirname, '../../src/content/lunchReads.js');
+    logger.info(`Reading existing lunchReads.js file from: ${lunchReadsPath}`);
+    
+    // Read the file as a string
+    const fileContent = fs.readFileSync(lunchReadsPath, 'utf8');
+    
+    // No need to create backup here as it's already done in main()
+    
+    // Find the first opening brace after "export const lunchReads = "
+    const exportMatch = fileContent.match(/export\s+const\s+lunchReads\s*=\s*{/);
+    if (!exportMatch) {
+      throw new Error('Could not find lunchReads object declaration in file');
+    }
+    
+    const openingBracePos = exportMatch.index + exportMatch[0].length;
+    
+    // Format the new lunch read entry
+    const formattedEntry = formatLunchReadEntry(newLunchRead);
+    
+    // Check if we need to add a comma (if there are existing entries)
+    let insertContent = formattedEntry;
+    const nextChar = fileContent.substring(openingBracePos, openingBracePos + 20).trim();
+    const needsComma = nextChar.length > 0 && nextChar !== '}';
+    
+    if (needsComma) {
+      insertContent += ',';
+    }
+    
+    // Create the updated content by inserting the new entry after the opening brace
+    const updatedContent = 
+      fileContent.substring(0, openingBracePos) + 
+      '\n' + insertContent + 
+      (needsComma ? '' : '\n') +
+      fileContent.substring(openingBracePos);
+    
+    // Write the updated content back to the file
+    fs.writeFileSync(lunchReadsPath, updatedContent, 'utf8');
+    
+    logger.success(`Successfully updated lunchReads.js with new entry: ${newLunchRead.id}`);
+    // Return the ID of the new lunch read
+    return newLunchRead.id;
+  } catch (error) {
+    const errorMessage = `Failed to parse lunchReads object: ${error.message}`;
+    logger.error(`Error updating lunchReads.js file`, { message: errorMessage, stack: error.stack });
+    throw new Error(`Failed to update lunchReads.js: ${errorMessage}`);
+  }
+}
+
 async function main() {
   try {
     log.info('Starting lunch read generation process');
@@ -939,8 +891,6 @@ async function main() {
     if (!isValid) {
       throw new Error('Failed to validate Claude API connection');
     }
-    
-    // Create a backup first
     // Create a backup first
     await createBackup();
     
