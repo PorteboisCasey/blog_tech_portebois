@@ -1,5 +1,5 @@
 export const lunchReads = {
-  building-resilient-a-9b410ffb: {
+  "building-resilient-a-9b410ffb": {
     id: 'building-resilient-a-9b410ffb',
     publishDate: '2025-04-04',
     type: 'lunch-read',
@@ -13,7 +13,7 @@ export const lunchReads = {
       content: 'Les architectures cloud-natives nécessitent un changement fondamental dans notre approche de la résilience. Plutôt que d'essayer de prévenir les défaillances, nous devons concevoir des systèmes qui anticipent les pannes et peuvent se rétablir avec élégance.\n\nLes microservices, les conteneurs et les outils d'orchestration comme Kubernetes fournissent la base, mais nous devons implémenter des modèles comme les disjoncteurs, les tentatives avec repli, et le cloisonnement pour vraiment atteindre la résilience. De plus, l'observabilité par les logs, les métriques et les traces devient essentielle pour comprendre le comportement du système.\n\nEn adoptant des approches cloud-natives, rappelons-nous que la résilience n'est pas seulement une préoccupation technique mais un impératif commercial. Un système résilient peut maintenir des niveaux de service acceptables même lorsque des composants échouent, assurant ainsi la continuité efficace de votre entreprise.'
     }
   },
-  unveiling-the-magic--eb84fd18: {
+  "unveiling-the-magic--eb84fd18": {
     id: 'unveiling-the-magic--eb84fd18',
     publishDate: '2025-03-29',
     type: 'lunch-read',
@@ -27,7 +27,7 @@ export const lunchReads = {
       content: 'Le machine learning peut sembler magique, mais il repose sur des fondements mathématiques et des principes statistiques que tout le monde peut saisir. À la base, le machine learning consiste à trouver des modèles dans les données et à utiliser ces modèles pour faire des prédictions ou prendre des décisions.\n\nLes composants clés comprennent la préparation des données, l'ingénierie des caractéristiques, la sélection du modèle et les métriques d'évaluation. Plutôt que d'être explicitement programmés, les systèmes de machine learning s'améliorent par l'expérience, ajustant leurs paramètres en fonction des données qu'ils traitent.\n\nEn explorant ce domaine, rappelez-vous que la qualité de vos données importe souvent plus que la complexité de l'algorithme. Un modèle simple entraîné sur d'excellentes données surpassera fréquemment un modèle complexe entraîné sur des données médiocres. Commencez par les fondamentaux, et la magie du machine learning commencera à avoir un sens parfait.'
     }
   },
-  crafting-robust-and--7de1e68f: {
+  "crafting-robust-and--7de1e68f": {
     id: 'crafting-robust-and--7de1e68f',
     publishDate: '2025-04-06',
     type: 'lunch-read',
@@ -41,7 +41,7 @@ export const lunchReads = {
       content: 'Une API bien conçue est le fondement d'une intégration logicielle réussie. Comme une interface bien élaborée, elle doit être intuitive, cohérente, et masquer la complexité inutile tout en exposant les fonctionnalités appropriées.\n\nCommencez par un contrat clair qui suit les principes REST ou GraphQL. Utilisez la gestion sémantique des versions pour maintenir la compatibilité ascendante tout en permettant l'évolution. Documentez minutieusement, avec des exemples pour les cas d'utilisation courants et des messages d'erreur clairs qui guident les développeurs vers des solutions.\n\nRappelez-vous que les API sont des produits utilisés par les développeurs. Appliquez les principes d'expérience utilisateur à votre processus de conception—menez des recherches utilisateurs, recueillez des commentaires, et itérez continuellement. La marque d'une excellente API est qu'elle se sent comme une extension naturelle de la boîte à outils d'un développeur plutôt qu'un système externe avec lequel il faut lutter.'
     }
   },
-  the-ethics-of-ai-bui-71296402: {
+  "the-ethics-of-ai-bui-71296402": {
     id: 'the-ethics-of-ai-bui-71296402',
     publishDate: '2025-04-04',
     type: 'lunch-read',
