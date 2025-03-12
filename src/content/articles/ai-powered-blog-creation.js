@@ -1,28 +1,25 @@
 export const article = {
   fr: {
-    title: "Comment j'ai codé ce blog en pyjama avec l'IA (sans finir esclave de mes propres prompts)",
+    title: "Pyjama, code et IA : comment j'ai hacké mon blog sans finir esclave de mes propres prompts",
     date: '2025-03-10',
-    tags: ['IA', 'Prompt Engineering', 'Humour', 'Next.js'],
-    excerpt: "L'histoire vraie d'un développeur qui a presque réussi à dompter GPT-4 pour coder son blog... et ce qu'il a appris en chemin.",
+    tags: ['IA', 'Prompt Engineering', 'Humour décalé', 'Next.js', 'DevOps'],
+    excerpt: "L'histoire vraie d'un dev qui a tenté de dompter GPT-4 pour coder son blog... et découvert l'art subtil du dialogue homme-machine.",
     content: `
-# Comment j'ai codé ce blog en pyjama avec l'IA (sans finir esclave de mes propres prompts)
+# Code en pyjama : mon duel épique contre GPT-4 pour dominer l'art du prompt
 
 ![IA vs Café](https://source.unsplash.com/800x600/?robot,coffee)
-*Mon nouveau collègue de travail - il ne boit pas mon café mais consomme des terawatts*
-
+*Mon nouveau collègue de travail - il carbure aux terawatts mais snobe mon café*
 ## Le pari fou : coder un blog tech avec 80% d'IA
+Tout commence un dimanche pluvieux, armé uniquement de mon pyjama licorne et d'une folle ambition : 
 
-Tout commence un dimanche pluvieux. Objectif : créer un blog moderne avec :
-
-- Next.js 15°
+- Next.js 15° (le framework qui chauffe plus que mon micro-ondes)
 - Internationalisation
 - Dark mode
 - Système de contenu Markdown
 - ...et zéro caféine
+Mais comment ? En recrutant GPT-4 comme stagiaire virtuel ! 
 
-Mais comment ? En transformant GPT-4 en colloc codeur !
-
-### Prompt #1 - Le framework de base
+### Acte I : Le framework ou l'art de dompter le chaos
 
 \`\`\`javascript
 // Mon premier prompt sérieux
@@ -48,15 +45,13 @@ Format de réponse :
 - Pas d'explications superflues
 \`;
 \`\`\`
+**Réussite relative** : La base tient debout... mais le dark mode rivalise avec les néons d'une boîte nightcore. 
+Leçon n°1 : En I## Acte II : Le piège des prompts fourre-tout
 
-**Réussite** : J'obtiens une base solide... mais le dark mode s'affiche en violet fluo. Lesson learned : spécifier les couleurs.
+### Séquence cringe : le menu licorne
+**Prompt naïf :** "Crée-moi un composant Navbar stylé"
 
-## Le piège des prompts trop vagues
-
-### Prompt raté #1
-"Crée-moi un composant Navbar stylé"
-
-Résultat : Une navbar rose bonbon avec des emojis de licorne. Mon côté "professional" pleure.
+**Résultat :** Une navbar rose fluo peuplée de licornes clignotantes. Mon portfolio ressemblait à la chambre d'une ado de 2005 sur Myspace.
 
 ### Prompt sauvé par le contexte
 \`\`\`javascript
@@ -82,10 +77,9 @@ Fournis aussi :
 \`;
 \`\`\`
 
-**Résultat** : Un composant clean avec gestion d'état propre. Crisis avoided.
+**Résultat :** Un composant sobre qui ne ferait pas rougir un CTO. Crisis avoided 🎉
 
-## La danse subtile du contrôle créatif
-
+## Acte III : L'équilibre subtil du contrôle créatif
 ### Exemple de prompt équilibré
 \`\`\`javascript
 const markdownPrompt = \`
@@ -109,10 +103,9 @@ Style de code :
 - Gestion d'erreur élégante
 \`;
 \`\`\`
+**Bonus inattendu :** L'IA a glissé un système de cache malin. Mon côté flemmard lui dit merci, mon ego de dev murmure "J'aurais pu y penser..." 😤
 
-**Bonus** : L'IA a ajouté un système de cache intelligent que je n'avais pas demandé... mais dont je ne peux plus me passer.
-
-## Les 5 commandements du prompt engineering maîtrisé
+## Les 10 commandements du dialogue homme-machine (version abrégée)
 
 1. **Contextualisation ferroviaire**  
    "Tu es un senior Next.js dev chez Vercel, expert en perf et accessibilité"
