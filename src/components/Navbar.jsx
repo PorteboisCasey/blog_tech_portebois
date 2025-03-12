@@ -23,7 +23,6 @@ const Navbar = () => {
   const links = [
     { path: '/', label: language === 'fr' ? 'Accueil' : 'Home' },
     { path: '/articles', label: language === 'fr' ? 'Articles' : 'Articles' },
-    { path: '/lunch-read', label: language === 'fr' ? 'Lecture du Midi' : 'Lunch Read' },
     { path: '/about', label: language === 'fr' ? 'À propos' : 'About' },
   ];
 

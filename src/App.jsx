@@ -11,8 +11,6 @@ import Home from './pages/Home';
 import Articles from './pages/Articles';
 import ArticlePage from './pages/ArticlePage';
 import About from './pages/About';
-import LunchRead from './pages/LunchRead';
-import LunchReadPage from './pages/LunchReadPage';
 
 
 const pageTransitionVariants = {
@@ -54,8 +52,6 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/articles" element={<Articles />} />
               <Route path="/articles/:id" element={<ArticlePage />} />
-              <Route path="/lunch-read" element={<LunchRead />} />
-              <Route path="/lunch-read/:id" element={<LunchReadPage />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </motion.div>
