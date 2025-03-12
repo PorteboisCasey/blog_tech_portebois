@@ -20,7 +20,7 @@ export default {
       },
       fontFamily: {
         'sans': ['Helvetica Neue', 'Arial', 'sans-serif'],
-        'display': ['DIN Condensed', 'Impact', 'sans-serif'],
+        'display': ['Bebas Neue', 'Impact', 'sans-serif'],
         'mono': ['IBM Plex Mono', 'monospace']
       },
       animation: {

@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import { articles } from '../content/articlesData';
+import articlesData from '../content/articlesData';
 import { useLanguage } from '../context/LanguageContext';
 import { useEffect, useState } from 'react';
 
@@ -28,8 +28,8 @@ const ArticlePage = () => {
         }
 
         // Fallback to articles.jsx
-        if (articles[id]?.[language]) {
-          setArticle(articles[id][language]);
+        if (articlesData[id]?.[language]) {
+          setArticle(articlesData[id][language]);
         } else {
           // If article not found, navigate back to articles page
           navigate('/articles');

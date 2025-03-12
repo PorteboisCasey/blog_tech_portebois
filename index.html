@@ -5,12 +5,136 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TECH://BLOG</title>
+    
+    <!-- Preload critical fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    
+    <!-- Critical CSS to prevent flash of unstyled content -->
+    <style>
+      :root {
+        --color-bg: #f8f9fa;
+        --color-text: #1a1a1a;
+        --color-primary: #3b82f6;
+        --color-secondary: #10b981;
+        --color-accent: #f59e0b;
+        --font-sans: 'IBM Plex Mono', monospace;
+        --font-display: 'Bebas Neue', sans-serif;
+      }
+      
+      .dark {
+        --color-bg: #121212;
+        --color-text: #f3f4f6;
+        --color-primary: #60a5fa;
+        --color-secondary: #34d399;
+        --color-accent: #fbbf24;
+      }
+      
+      html {
+        font-family: var(--font-sans);
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        transition: background-color 0.3s ease;
+        min-height: 100vh;
+      }
+      
+      #root {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      
+      .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-family: var(--font-display);
+      }
+      
+      .loading-logo {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: bold;
+        color: var(--color-primary);
+      }
+      
+      .loading-spinner {
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 0.25rem solid rgba(59, 130, 246, 0.3);
+        border-radius: 50%;
+        border-top-color: var(--color-primary);
+        animation: spin 1s infinite linear;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
+      }
+    </style>
+    
+    <!-- Dark mode initialization script -->
+    <script>
+      // Immediately execute to prevent flash of wrong theme
+      (function() {
+        // Check for saved theme preference or default to system preference
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        // Apply the appropriate theme
+        if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        
+        // Update theme when system preference changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+          if (!localStorage.getItem('theme')) {
+            if (e.matches) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          }
+        });
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Initial loading state -->
+      <div class="loading-container">
+        <div class="loading-logo">TECH://BLOG</div>
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p class="visually-hidden">Loading application...</p>
+      </div>
+    </div>
+    <noscript>
+      <div style="padding: 2rem; text-align: center;">
+        <h1>JavaScript Required</h1>
+        <p>This blog requires JavaScript to be enabled in your browser.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

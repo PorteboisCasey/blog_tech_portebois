@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { articles } from '../content/articlesData';
+import articlesData from '../content/articlesData';
 import { useLanguage } from '../context/LanguageContext';
 
 const Articles = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const articleList = Object.entries(articles).map(([id, article]) => ({
+  const articleList = Object.entries(articlesData).map(([id, article]) => ({
     ...article[language],
     id
   }));
