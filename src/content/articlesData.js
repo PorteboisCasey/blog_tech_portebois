@@ -75,6 +75,30 @@ const articlesData = {
       summary: "Découvrez les pratiques exemplaires de codage essentielles que chaque développeur devrait suivre pour créer des logiciels maintenables, efficaces et de haute qualité.",
       markdownPath: "/articles/markdown/coding-best-practices-fr.md"
     }
+  },
+  "time-optimization": {
+    en: {
+      id: "time-optimization",
+      title: "Time Optimization: Maximizing Productivity in Software Development",
+      date: "2025-03-12",
+      author: "Casey Portebois",
+      category: "Productivity",
+      tags: ["Time Management", "Productivity", "Software Development", "Best Practices"],
+      image: "/images/blog/time-optimization.jpg",
+      summary: "Learn effective strategies for optimizing time management in software development, including practical tips and real-world examples.",
+      markdownPath: "/articles/markdown/time-optimization-en.md"
+    },
+    fr: {
+      id: "time-optimization",
+      title: "Optimisation du Temps: Maximiser la Productivité en Développement Logiciel",
+      date: "2025-03-12",
+      author: "Casey Portebois",
+      category: "Productivité",
+      tags: ["Gestion du Temps", "Productivité", "Développement Logiciel", "Bonnes Pratiques"],
+      image: "/images/blog/time-optimization.jpg",
+      summary: "Découvrez des stratégies efficaces pour optimiser la gestion du temps en développement logiciel, incluant des conseils pratiques et des exemples concrets.",
+      markdownPath: "/articles/markdown/time-optimization-fr.md"
+    }
   }
 };
 

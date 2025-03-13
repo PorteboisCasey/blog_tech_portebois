@@ -1,0 +1,1 @@
+Entre les cours intenses de dernière année, une alternance exigeante et la recherche du master idéal, mon quotidien ressemble à une partie de Tetris en mode expert. Découvrez comment je maintiens cet équilibre précaire tout en préservant ma santé mentale (et ma passion pour le code 💻).

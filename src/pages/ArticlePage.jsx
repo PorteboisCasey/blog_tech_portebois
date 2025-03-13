@@ -14,32 +14,64 @@ const ArticlePage = () => {
 
   useEffect(() => {
     const loadArticle = async () => {
+      console.log(`Loading article: id=${id}, language=${language}`);
+      setLoading(true);
       try {
-        // First try to load from individual file
-        try {
-          const module = await import(`../content/articles/${id}.js`);
-          if (module.article && module.article[language]) {
-            setArticle(module.article[language]);
-            setLoading(false);
-            return;
-          }
-        } catch (err) {
-          console.log('Individual article file not found, trying fallback');
-        }
-
-        // Fallback to articles.jsx
+        // Get article metadata from articlesData
         if (articlesData[id]?.[language]) {
-          setArticle(articlesData[id][language]);
+          const articleMetadata = articlesData[id][language];
+          console.log('Article metadata found:', articleMetadata);
+          
+          // Fetch markdown content from the file
+          try {
+            const markdownPath = articleMetadata.markdownPath;
+            if (markdownPath) {
+              // Construct absolute URL for development
+              const baseUrl = import.meta.env.DEV 
+                ? window.location.origin 
+                : '';
+              const markdownUrl = `${baseUrl}${markdownPath}`;
+              console.log('Fetching markdown from:', markdownUrl);
+              
+              const response = await fetch(markdownUrl);
+              if (!response.ok) {
+                throw new Error(`Failed to fetch markdown: ${response.status}`);
+              }
+
+              const markdownContent = await response.text();
+              console.log('Markdown content loaded, length:', markdownContent.length);
+
+              // Combine metadata with content
+              setArticle({
+                ...articleMetadata,
+                content: markdownContent
+              });
+            } else {
+              // Fallback if no markdown path
+              console.warn('No markdown path found for article:', id, language);
+              setArticle(articleMetadata);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching markdown content:', fetchError);
+            console.error('Stack:', fetchError.stack);
+            // Still show article with metadata but without content
+            setArticle({
+              ...articleMetadata,
+              content: `# Error Loading Content\n\nSorry, we couldn't load the content for this article. Please try again later.`
+            });
+          }
         } else {
           // If article not found, navigate back to articles page
+          console.error('Article not found:', id, language);
           navigate('/articles');
         }
       } catch (error) {
         console.error('Error loading article:', error);
+        console.error('Stack:', error.stack);
         navigate('/articles');
       } finally {
         setLoading(false);
-      }
+      };
     };
 
     loadArticle();
@@ -48,7 +80,7 @@ const ArticlePage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-club-black flex items-center justify-center">
-        <div className="text-club-neon text-xl">Loading...</div>
+        <div className="text-club-neon text-xl">Loading article content...</div>
       </div>
     );
   }
